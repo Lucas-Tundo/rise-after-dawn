@@ -1,0 +1,15 @@
+{
+  "locale": "es-419",
+  "entries": [
+    {
+      "key": "item.wpn_vigil_blade_t1.desc",
+      "value": "Una hoja forjada para los reclutas de la Vigilia.",
+      "context": "Descripción corta del item"
+    },
+    {
+      "key": "item.wpn_vigil_blade_t1.name",
+      "value": "Hoja Vigilia",
+      "context": "Nombre del item inicial (arma T1)"
+    }
+  ]
+}

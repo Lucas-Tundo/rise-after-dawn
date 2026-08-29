@@ -1,0 +1,15 @@
+{
+  "locale": "pt-BR",
+  "entries": [
+    {
+      "key": "item.wpn_vigil_blade_t1.desc",
+      "value": "Uma lâmina forjada para os recrutas da Vigília.",
+      "context": "Descrição curta do item"
+    },
+    {
+      "key": "item.wpn_vigil_blade_t1.name",
+      "value": "Lâmina Vigília",
+      "context": "Nome do item inicial (arma T1)"
+    }
+  ]
+}

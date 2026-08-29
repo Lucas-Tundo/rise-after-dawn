@@ -1,0 +1,865 @@
+// ============================================================================
+//  RISE AFTER DAWN — schema.prisma canônico v2.0
+//  Prisma 7 · PostgreSQL · ESM
+//
+//  ⚠️ SINTAXE PRISMA 7 — diferente da v1.0 deste projeto:
+//     · provider = "prisma-client"  (NÃO "prisma-client-js" — deprecado)
+//     · output   = obrigatório      (o client NÃO vai mais para node_modules)
+//     · driver adapter obrigatório  (@prisma/adapter-pg) na instanciação
+//     · package.json precisa de     { "type": "module" }
+//     · prisma.config.ts na raiz    (o .env não é mais carregado sozinho)
+//
+//  Comandos:
+//     npx prisma migrate dev --name init      ← NUNCA use `db push`
+//     npx prisma generate
+// ============================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// ⚠️ PRISMA 7.9+: `url` NÃO é mais aceito aqui. A connection string vive
+//    exclusivamente em prisma.config.ts, e o PrismaClient recebe um `adapter`.
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+//  ENUMS — substituem as String mágicas da v1.0
+// ============================================================================
+
+enum CharacterClass {
+  VANGUARD // tank
+  ARCANIST // mago DPS
+  RANGER // arqueiro DPS
+  WARDEN // suporte / cura
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NEUTRAL // necessário para concordância ICU em pt-BR / es-419
+}
+
+enum Locale {
+  PT_BR
+  ES_419
+  EN_US
+}
+
+enum Faction {
+  UNALIGNED // antes do nível 15
+  IRONVOW
+  ASHENFOLD
+}
+
+enum Region {
+  SA // shard São Paulo — BR, AR, CL, CO, PE
+  NA // shard Virgínia — US, CA, MX (Fase C)
+}
+
+enum CurrencyType {
+  GOLD // moeda soft, ganha jogando
+  GEMS // moeda premium, comprada
+  HONOR // moeda de PvP (fase 2)
+}
+
+enum LedgerOperation {
+  DUNGEON_REWARD
+  QUEST_REWARD
+  EVENT_REWARD
+  MAIL_ATTACHMENT
+  STORE_PURCHASE
+  IAP_CREDIT
+  MARKET_SALE
+  MARKET_PURCHASE
+  MARKET_FEE
+  ITEM_UPGRADE
+  REPAIR_COST
+  GM_ADJUSTMENT // sempre com AuditLog associado
+  REFUND
+}
+
+enum ItemCategory {
+  WEAPON
+  HELMET
+  CHEST
+  GLOVES
+  BOOTS
+  RING
+  AMULET
+  CONSUMABLE
+  MATERIAL
+  QUEST_ITEM
+  VANITY
+  CURRENCY_BUNDLE
+}
+
+enum ItemRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum EquipSlot {
+  MAIN_HAND
+  OFF_HAND
+  HELMET
+  CHEST
+  GLOVES
+  BOOTS
+  RING_1
+  RING_2
+  AMULET
+}
+
+enum StatType {
+  STRENGTH
+  AGILITY
+  INTELLIGENCE
+  VITALITY
+  PHYSICAL_DAMAGE
+  MAGIC_DAMAGE
+  ARMOR
+  MAGIC_RESIST
+  CRIT_CHANCE
+  CRIT_DAMAGE
+  ATTACK_SPEED
+  MOVE_SPEED
+  MAX_HP
+  MAX_RESOURCE
+  LIFE_STEAL
+  COOLDOWN_REDUCTION
+}
+
+enum Difficulty {
+  NORMAL
+  HEROIC
+  NIGHTMARE
+  INFERNO
+}
+
+enum QuestType {
+  MAIN_STORY
+  SIDE
+  DAILY
+  WEEKLY
+  ACHIEVEMENT
+}
+
+enum QuestState {
+  AVAILABLE
+  ACTIVE
+  COMPLETED
+  CLAIMED
+}
+
+enum GuildRank {
+  MEMBER
+  OFFICER
+  LEADER
+}
+
+enum FriendshipState {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum MarketState {
+  ACTIVE
+  SOLD
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentProvider {
+  GOOGLE_PLAY
+  APPLE_APPSTORE
+  ASAAS_PIX
+  MERCADO_PAGO
+  DLOCAL
+  STRIPE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  CREDITED
+  FAILED
+  REFUNDED
+  CHARGEBACK
+}
+
+enum SanctionType {
+  WARNING
+  CHAT_MUTE
+  TEMP_BAN
+  PERMA_BAN
+}
+
+// ============================================================================
+//  IAM — conta, sessão, segurança
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique // null = conta guest
+  passwordHash  String? // Argon2id
+  isGuest       Boolean   @default(true)
+  preferredLoc  Locale    @default(PT_BR)
+  countryCode   String    @default("BR") @db.VarChar(2)
+  region        Region    @default(SA)
+  emailVerified Boolean   @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  characters    Character[]
+  refreshTokens RefreshToken[]
+  paymentOrders PaymentOrder[]
+  sanctions     Sanction[]
+
+  @@index([countryCode])
+  @@index([createdAt])
+}
+
+/// Refresh token rotativo. Guardamos o HASH, nunca o token cru.
+/// `replacedById` permite detectar reúso de token revogado = sessão comprometida.
+model RefreshToken {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  deviceId     String?
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+// ============================================================================
+//  PERSONAGEM
+// ============================================================================
+
+model Character {
+  id             String         @id @default(cuid())
+  userId         String
+  name           String         @unique @db.VarChar(16)
+  nameNormalized String         @unique // lowercase sem acento — impede impersonation
+  classType      CharacterClass
+  gender         Gender         @default(NEUTRAL) // concordância ICU pt/es
+  faction        Faction        @default(UNALIGNED)
+  region         Region         @default(SA)
+  shardId        String         @default("sa-gru-1")
+
+  level      Int    @default(1)
+  experience BigInt @default(0)
+
+  currentMapId String @default("solhaven_plaza")
+  positionX    Float  @default(0)
+  positionY    Float  @default(0)
+  positionZ    Float  @default(0)
+  rotationY    Float  @default(0)
+
+  currentHp  Int @default(100)
+  currentRes Int @default(50) // Rage / Aether / Focus
+
+  playTimeSec Int       @default(0)
+  lastSeenAt  DateTime  @default(now())
+  deletedAt   DateTime? // soft delete — nunca apague personagem com economia
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attributes   CharacterAttributes?
+  wallets      WalletBalance[]
+  inventory    InventorySlot[]
+  equipment    EquipmentSlot[]
+  items        ItemInstance[]
+  skills       CharacterSkill[]
+  quests       QuestProgress[]
+  runs         DungeonRun[]
+  progressions EventProgression[]
+  ledger       EconomyLedger[]
+  guildMember  GuildMember?
+  sentMail     MailMessage[]        @relation("MailSender")
+  receivedMail MailMessage[]        @relation("MailRecipient")
+  listings     MarketListing[]
+  friendsFrom  Friendship[]         @relation("FriendFrom")
+  friendsTo    Friendship[]         @relation("FriendTo")
+  companions   Companion[]
+  familiars    Familiar[]
+
+  @@index([userId])
+  @@index([shardId, level])
+  @@index([faction, level])
+  @@index([lastSeenAt])
+}
+
+model CharacterAttributes {
+  characterId   String @id
+  strength      Int    @default(10)
+  agility       Int    @default(10)
+  intelligence  Int    @default(10)
+  vitality      Int    @default(10)
+  unspentPoints Int    @default(0)
+  /// Contador anti-exploit: total já distribuído. Deve bater com
+  /// (level - 1) * 5 + bônus de quest. Divergência = alerta.
+  totalSpent    Int    @default(0)
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+//  ITENS — a maior lacuna da v1.0
+//  ItemDefinition = O QUE o item é (estático, vem do CSV de conteúdo)
+//  ItemInstance   = O QUE AQUELE item rolou (dinâmico, por jogador)
+// ============================================================================
+
+model ItemDefinition {
+  id             String          @id @db.VarChar(64) // ex.: "wpn_ashen_blade_t3"
+  category       ItemCategory
+  rarity         ItemRarity
+  equipSlot      EquipSlot?
+  requiredLevel  Int             @default(1)
+  requiredClass  CharacterClass? // null = qualquer classe
+  maxStack       Int             @default(1)
+  baseValue      Int             @default(0) // preço de venda ao NPC, em gold
+  isTradeable    Boolean         @default(true)
+  isBindOnPickup Boolean         @default(false)
+  iconAddress    String // chave Addressables
+  modelAddress   String?
+  /// Stats base: { "PHYSICAL_DAMAGE": [12,18], "STRENGTH": [3,5] }
+  /// Ranges [min,max] — a rolagem acontece no servidor ao dropar.
+  baseStats      Json            @default("{}")
+  /// Quantos afixos aleatórios este item pode receber por raridade.
+  affixSlots     Int             @default(0)
+  createdAt      DateTime        @default(now())
+
+  instances   ItemInstance[]
+  lootEntries LootEntry[]
+
+  @@index([category, rarity])
+  @@index([requiredLevel])
+}
+
+/// Instância única. Sem isto não existe loot de ARPG — só inventário de strings.
+model ItemInstance {
+  id               String   @id @default(cuid())
+  definitionId     String   @db.VarChar(64)
+  ownerCharacterId String? // null = está no mercado ou em correio
+  quantity         Int      @default(1)
+  upgradeLevel     Int      @default(0) // +0 a +15
+  /// Stats rolados no drop: { "PHYSICAL_DAMAGE": 16, "STRENGTH": 4 }
+  rolledStats      Json     @default("{}")
+  /// Afixos aleatórios: [{ "stat": "CRIT_CHANCE", "value": 3.5, "tier": 2 }]
+  affixes          Json     @default("[]")
+  isLocked         Boolean  @default(false) // trava contra venda acidental
+  sourceRunId      String? // rastreabilidade: de qual dungeon veio
+  createdAt        DateTime @default(now())
+
+  definition    ItemDefinition @relation(fields: [definitionId], references: [id])
+  owner         Character?     @relation(fields: [ownerCharacterId], references: [id], onDelete: Cascade)
+  inventorySlot InventorySlot?
+  equipmentSlot EquipmentSlot?
+  listing       MarketListing?
+
+  @@index([ownerCharacterId])
+  @@index([definitionId])
+}
+
+model InventorySlot {
+  id             String @id @default(cuid())
+  characterId    String
+  slotIndex      Int
+  itemInstanceId String @unique
+
+  character    Character    @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  itemInstance ItemInstance @relation(fields: [itemInstanceId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, slotIndex])
+  @@index([characterId])
+}
+
+model EquipmentSlot {
+  id             String    @id @default(cuid())
+  characterId    String
+  slot           EquipSlot
+  itemInstanceId String    @unique
+
+  character    Character    @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  itemInstance ItemInstance @relation(fields: [itemInstanceId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, slot]) // impede dois itens no mesmo slot
+}
+
+// ============================================================================
+//  HABILIDADES
+// ============================================================================
+
+model SkillDefinition {
+  id            String         @id @db.VarChar(64) // ex.: "arc_fireball"
+  classType     CharacterClass
+  requiredLevel Int            @default(1)
+  maxRank       Int            @default(5)
+  resourceCost  Int            @default(0)
+  cooldownMs    Int            @default(1000)
+  castTimeMs    Int            @default(0)
+  rangeMeters   Float          @default(3)
+  /// Escala por rank: { "damageMultiplier": [1.0,1.2,1.4,1.6,1.8] }
+  scaling       Json           @default("{}")
+  iconAddress   String
+  vfxAddress    String?
+  isUltimate    Boolean        @default(false)
+
+  characterSkills CharacterSkill[]
+
+  @@index([classType, requiredLevel])
+}
+
+model CharacterSkill {
+  id          String @id @default(cuid())
+  characterId String
+  skillId     String @db.VarChar(64)
+  rank        Int    @default(1)
+  hotbarSlot  Int? // 0..3, null = não equipada
+
+  character Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  skill     SkillDefinition @relation(fields: [skillId], references: [id])
+
+  @@unique([characterId, skillId])
+  @@unique([characterId, hotbarSlot])
+}
+
+// ============================================================================
+//  MONSTROS, LOOT E DUNGEONS
+// ============================================================================
+
+model MonsterDefinition {
+  id           String  @id @db.VarChar(64)
+  tier         Int     @default(1) // 1=comum 2=elite 3=boss
+  baseLevel    Int     @default(1)
+  baseHp       Int
+  baseDamage   Int
+  baseArmor    Int     @default(0)
+  moveSpeed    Float   @default(3.0)
+  aggroRadius  Float   @default(8.0)
+  xpReward     Int     @default(10)
+  lootTableId  String?
+  modelAddress String
+  /// Padrões de IA: [{ "skill":"slam", "cooldownMs":6000, "telegraphMs":900 }]
+  aiPattern    Json    @default("[]")
+
+  lootTable LootTable? @relation(fields: [lootTableId], references: [id])
+
+  @@index([tier, baseLevel])
+}
+
+model LootTable {
+  id       String @id @db.VarChar(64)
+  goldMin  Int    @default(0)
+  goldMax  Int    @default(0)
+  maxDrops Int    @default(3)
+
+  entries  LootEntry[]
+  monsters MonsterDefinition[]
+}
+
+model LootEntry {
+  id            String     @id @default(cuid())
+  lootTableId   String     @db.VarChar(64)
+  itemDefId     String     @db.VarChar(64)
+  weight        Int        @default(100) // peso relativo, não porcentagem
+  minQuantity   Int        @default(1)
+  maxQuantity   Int        @default(1)
+  minDifficulty Difficulty @default(NORMAL)
+
+  lootTable LootTable      @relation(fields: [lootTableId], references: [id], onDelete: Cascade)
+  item      ItemDefinition @relation(fields: [itemDefId], references: [id])
+
+  @@index([lootTableId])
+}
+
+model DungeonDefinition {
+  id            String     @id @db.VarChar(64)
+  zoneId        String     @db.VarChar(64)
+  minLevel      Int        @default(1)
+  maxPlayers    Int        @default(4)
+  difficulty    Difficulty @default(NORMAL)
+  estimatedMin  Int        @default(8) // minutos
+  dailyRunLimit Int        @default(3)
+  bossMonsterId String?    @db.VarChar(64)
+  /// Parâmetros da geração procedural com seed
+  layoutConfig  Json       @default("{}")
+  lootTableId   String?    @db.VarChar(64)
+
+  runs DungeonRun[]
+
+  @@index([zoneId, minLevel])
+}
+
+model DungeonRun {
+  id          String     @id @default(cuid())
+  dungeonId   String     @db.VarChar(64)
+  characterId String
+  partyKey    String? // agrupa os 4 jogadores da mesma run
+  seed        BigInt // mesmo seed = mesmo mapa para todos
+  difficulty  Difficulty @default(NORMAL)
+  startedAt   DateTime   @default(now())
+  completedAt DateTime?
+  wasCleared  Boolean    @default(false)
+  deaths      Int        @default(0)
+  damageDealt BigInt     @default(0)
+  durationSec Int?
+
+  dungeon   DungeonDefinition @relation(fields: [dungeonId], references: [id])
+  character Character         @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, startedAt])
+  @@index([partyKey])
+  @@index([dungeonId, completedAt])
+}
+
+// ============================================================================
+//  QUESTS E CAMPANHA
+// ============================================================================
+
+model QuestDefinition {
+  id             String    @id @db.VarChar(64)
+  questType      QuestType
+  zoneId         String?   @db.VarChar(64)
+  requiredLevel  Int       @default(1)
+  prerequisiteId String?   @db.VarChar(64) // encadeamento da história
+  /// [{ "type":"KILL","target":"mob_blighted_wolf","count":10 }]
+  objectives     Json      @default("[]")
+  /// { "xp":500, "gold":200, "items":[{"id":"wpn_x","qty":1}] }
+  rewards        Json      @default("{}")
+  isRepeatable   Boolean   @default(false)
+
+  progress QuestProgress[]
+
+  @@index([questType, requiredLevel])
+  @@index([zoneId])
+}
+
+model QuestProgress {
+  id          String     @id @default(cuid())
+  characterId String
+  questId     String     @db.VarChar(64)
+  state       QuestState @default(ACTIVE)
+  /// { "mob_blighted_wolf": 7 }
+  counters    Json       @default("{}")
+  startedAt   DateTime   @default(now())
+  completedAt DateTime?
+  claimedAt   DateTime?
+  resetAt     DateTime? // para diárias/semanais
+
+  character Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  quest     QuestDefinition @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, questId])
+  @@index([characterId, state])
+}
+
+// ============================================================================
+//  ECONOMIA — Ledger imutável + saldo materializado
+// ============================================================================
+
+/// APPEND-ONLY. Nunca UPDATE, nunca DELETE. Esta é a verdade.
+model EconomyLedger {
+  id           String          @id @default(cuid())
+  characterId  String
+  currency     CurrencyType
+  amount       BigInt // positivo = crédito, negativo = débito
+  balanceAfter BigInt // snapshot para auditoria rápida
+  operation    LedgerOperation
+  referenceId  String? // runId, orderId, listingId...
+  metadata     Json            @default("{}")
+  createdAt    DateTime        @default(now())
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, currency, createdAt])
+  @@index([operation, createdAt])
+  @@index([referenceId])
+}
+
+/// Cache materializado. Atualizado SEMPRE na mesma transação do Ledger.
+/// Job noturno confere: SUM(ledger.amount) == amount. Divergência = exploit.
+model WalletBalance {
+  characterId String
+  currency    CurrencyType
+  amount      BigInt       @default(0)
+  updatedAt   DateTime     @updatedAt
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@id([characterId, currency])
+}
+
+model PaymentOrder {
+  id              String          @id @default(cuid())
+  userId          String
+  characterId     String? // para qual personagem creditar
+  provider        PaymentProvider
+  /// ID do evento no gateway — CHAVE DE IDEMPOTÊNCIA. Gateways reenviam.
+  providerEventId String          @unique
+  providerOrderId String?
+  productSku      String          @db.VarChar(64)
+  amountCents     Int
+  currencyCode    String          @db.VarChar(3) // BRL, ARS, CLP, USD
+  countryCode     String          @db.VarChar(2)
+  gemsGranted     Int             @default(0)
+  status          PaymentStatus   @default(PENDING)
+  rawPayload      Json?
+  paidAt          DateTime?
+  creditedAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+// ============================================================================
+//  MERCADO ENTRE JOGADORES
+// ============================================================================
+
+model MarketListing {
+  id             String      @id @default(cuid())
+  sellerId       String
+  itemInstanceId String      @unique
+  priceGold      BigInt
+  state          MarketState @default(ACTIVE)
+  buyerId        String?
+  listedAt       DateTime    @default(now())
+  expiresAt      DateTime
+  soldAt         DateTime?
+
+  seller       Character    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  itemInstance ItemInstance @relation(fields: [itemInstanceId], references: [id])
+
+  @@index([state, priceGold])
+  @@index([sellerId, state])
+  @@index([expiresAt])
+}
+
+// ============================================================================
+//  SOCIAL
+// ============================================================================
+
+model Guild {
+  id             String   @id @default(cuid())
+  name           String   @unique @db.VarChar(24)
+  nameNormalized String   @unique
+  tag            String   @unique @db.VarChar(5)
+  descriptionRaw String?  @db.VarChar(280)
+  emblemId       String   @default("emblem_01")
+  level          Int      @default(1)
+  experience     BigInt   @default(0)
+  treasuryGold   BigInt   @default(0)
+  maxMembers     Int      @default(30)
+  faction        Faction  @default(UNALIGNED)
+  shardId        String   @default("sa-gru-1")
+  isRecruiting   Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  members GuildMember[]
+
+  @@index([shardId, level])
+}
+
+model GuildMember {
+  characterId  String    @id
+  guildId      String
+  rank         GuildRank @default(MEMBER)
+  contribution BigInt    @default(0)
+  joinedAt     DateTime  @default(now())
+
+  guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, rank])
+}
+
+model Friendship {
+  id        String          @id @default(cuid())
+  fromId    String
+  toId      String
+  state     FriendshipState @default(PENDING)
+  createdAt DateTime        @default(now())
+
+  from Character @relation("FriendFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   Character @relation("FriendTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId])
+  @@index([toId, state])
+}
+
+model MailMessage {
+  id            String   @id @default(cuid())
+  recipientId   String
+  senderId      String? // null = sistema
+  /// Chave de localização + params. NUNCA texto pronto — ver Seção 3.2.
+  subjectKey    String   @db.VarChar(80)
+  bodyKey       String   @db.VarChar(80)
+  bodyParams    Json     @default("{}")
+  /// Correio de jogador é texto livre e passa por filtro de palavrão
+  freeTextBody  String?  @db.VarChar(500)
+  attachedGold  BigInt   @default(0)
+  attachedGems  BigInt   @default(0)
+  /// [{ "itemDefId":"wpn_x", "qty":1, "rolledStats":{...} }]
+  attachedItems Json     @default("[]")
+  isRead        Boolean  @default(false)
+  isClaimed     Boolean  @default(false)
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  recipient Character  @relation("MailRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  sender    Character? @relation("MailSender", fields: [senderId], references: [id])
+
+  @@index([recipientId, isRead])
+  @@index([expiresAt])
+}
+
+// ============================================================================
+//  COMPANIONS E FAMILIARS (renomeados de Mercenaries / Pets)
+// ============================================================================
+
+model Companion {
+  id           String   @id @default(cuid())
+  characterId  String
+  definitionId String   @db.VarChar(64)
+  level        Int      @default(1)
+  starRank     Int      @default(1)
+  isActive     Boolean  @default(false)
+  acquiredAt   DateTime @default(now())
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, definitionId])
+  @@index([characterId, isActive])
+}
+
+model Familiar {
+  id           String   @id @default(cuid())
+  characterId  String
+  definitionId String   @db.VarChar(64)
+  nickname     String?  @db.VarChar(16)
+  level        Int      @default(1)
+  isActive     Boolean  @default(false)
+  acquiredAt   DateTime @default(now())
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, definitionId])
+}
+
+// ============================================================================
+//  LIVEOPS
+// ============================================================================
+
+model EventDefinition {
+  id             String     @id @default(cuid())
+  /// Chaves de localização — o texto vive em LocalizedString
+  titleKey       String     @db.VarChar(80)
+  descriptionKey String     @db.VarChar(80)
+  frequencyType  String     @db.VarChar(16) // DAILY | WEEKLY | MONTHLY | SPECIAL
+  difficultyTier Difficulty @default(NORMAL)
+  /// Tiers de pontuação e prêmios
+  rewardsPayload Json       @default("{}")
+  /// Restrição geográfica opcional: ["BR","AR"] — null = global
+  countryFilter  Json?
+  minLevel       Int        @default(1)
+  startsAt       DateTime
+  endsAt         DateTime
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+
+  progressions EventProgression[]
+
+  @@index([isActive, startsAt, endsAt])
+}
+
+model EventProgression {
+  id                String   @id @default(cuid())
+  characterId       String
+  eventDefinitionId String
+  score             Int      @default(0)
+  completedTiers    Json     @default("[]")
+  updatedAt         DateTime @updatedAt
+
+  character Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  event     EventDefinition @relation(fields: [eventDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, eventDefinitionId])
+  @@index([eventDefinitionId, score]) // ranking do evento
+}
+
+// ============================================================================
+//  LOCALIZAÇÃO — texto de conteúdo, gerado pelo build-locales.ts
+// ============================================================================
+
+model LocalizedString {
+  key       String   @db.VarChar(120) // "item.wpn_ashen_blade_t3.name"
+  locale    Locale
+  value     String   @db.Text
+  /// Contexto para o tradutor: onde aparece, limite de caracteres
+  context   String?  @db.VarChar(200)
+  updatedAt DateTime @updatedAt
+
+  @@id([key, locale])
+  @@index([locale])
+}
+
+// ============================================================================
+//  AUDITORIA E MODERAÇÃO
+// ============================================================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorType  String   @db.VarChar(16) // SYSTEM | GM | PLAYER
+  actorId    String?
+  action     String   @db.VarChar(64)
+  targetType String?  @db.VarChar(32)
+  targetId   String?
+  before     Json?
+  after      Json?
+  reason     String?  @db.VarChar(280)
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action, createdAt])
+}
+
+model Sanction {
+  id           String       @id @default(cuid())
+  userId       String
+  type         SanctionType
+  reasonKey    String       @db.VarChar(80) // localizável
+  internalNote String?      @db.VarChar(500)
+  issuedBy     String? // GM
+  startsAt     DateTime     @default(now())
+  expiresAt    DateTime? // null = permanente
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([expiresAt])
+}

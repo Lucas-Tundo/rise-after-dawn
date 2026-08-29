@@ -1,0 +1,187 @@
+{
+  "$schema": "./design-tokens.schema.json",
+  "meta": {
+    "project": "Rise After Dawn",
+    "version": "1.0.0",
+    "note": "FONTE ÚNICA DA VERDADE. Nenhum hex, px, fonte ou raio pode existir em código fora deste arquivo. Unity, Next.js e assets de loja leem daqui. Validado por scripts/validate-brand.mjs — o build FALHA se algo divergir."
+  },
+
+  "color": {
+    "surface": {
+      "void":   { "hex": "#0A0D14", "uso": "fundo mais profundo. NÃO usar #000 puro: em OLED achata a profundidade e mata o gradiente de atmosfera." },
+      "stone":  { "hex": "#161C28", "uso": "painéis, cards, fundo de HUD" },
+      "slate":  { "hex": "#2A3242", "uso": "bordas, divisórias, estado elevado" },
+      "mist":   { "hex": "#3D4759", "uso": "elementos desabilitados" }
+    },
+    "text": {
+      "primary":   { "hex": "#F2F4F8", "uso": "texto principal", "contraste_sobre_void": 17.65 },
+      "secondary": { "hex": "#A8B0BF", "uso": "texto de apoio", "contraste_sobre_void": 8.91 },
+      "muted":     { "hex": "#7A8394", "uso": "metadados, timestamps", "contraste_sobre_void": 5.09 },
+      "onEmber":   { "hex": "#1A0F05", "uso": "texto sobre botão ember", "contraste_sobre_ember": 8.34 }
+    },
+    "brand": {
+      "ember":  { "hex": "#FF9036", "uso": "AÇÃO PRIMÁRIA. 'A última luz'. Máximo 1 elemento ember por tela." },
+      "aether": { "hex": "#5FD4E8", "uso": "mana, magia, gelo. Frio contra o quente do ember." },
+      "blight": { "hex": "#7B4FD9", "uso": "corrupção, inimigos, dano mágico" }
+    },
+    "faction": {
+      "ironvow":   { "hex": "#C9A227", "uso": "facção Ironvow — ouro/aço" },
+      "ashenfold": { "hex": "#C4373C", "uso": "facção Ashenfold — carmim/cinza" },
+      "unaligned": { "hex": "#7A8394", "uso": "antes do nível 15" }
+    },
+    "state": {
+      "success": { "hex": "#4ADE80" },
+      "warning": { "hex": "#FBBF24" },
+      "danger":  { "hex": "#EF4444" },
+      "hp":      { "hex": "#D6453F" },
+      "resource":{ "hex": "#4A9FE8" },
+      "xp":      { "hex": "#B8862B" }
+    },
+    "rarity": {
+      "_nota": "CONVENÇÃO DO GÊNERO — o jogador de ARPG lê estas cores sem pensar. NÃO INOVE AQUI. Desviar destroi legibilidade instantânea de loot.",
+      "COMMON":    { "hex": "#9CA3AF" },
+      "UNCOMMON":  { "hex": "#4ADE80" },
+      "RARE":      { "hex": "#3B82F6" },
+      "EPIC":      { "hex": "#A855F7" },
+      "LEGENDARY": { "hex": "#F59E0B" }
+    }
+  },
+
+  "typography": {
+    "_licenca": "Todas Google Fonts, licença OFL — uso comercial livre, custo R$ 0. Todas com Latin Extended-A verificado (ã õ ç ñ á é í ó ú à â ê ô).",
+    "display": {
+      "family": "Cinzel",
+      "weights": [700],
+      "uso": "APENAS: logo, nome de boss, título de capítulo, tela de vitória. Nunca em texto corrido, nunca em botão, nunca abaixo de 20px.",
+      "justificativa": "Letra romana lapidar — evoca pedra entalhada e ruínas. Casa com A Ruptura."
+    },
+    "ui": {
+      "family": "Barlow",
+      "weights": [400, 500, 600],
+      "uso": "todo o resto: botões, labels, diálogo, descrição de item",
+      "justificativa": "Escolhida por causa do i18n, não por estética: tem variante Semi Condensed. Espanhol cresce ~30% sobre o inglês; quando o texto estoura, troca-se a variante em vez de reduzir a fonte."
+    },
+    "uiCondensed": {
+      "family": "Barlow Semi Condensed",
+      "weights": [500, 600],
+      "uso": "acionada automaticamente quando string traduzida > 118% da largura do container"
+    },
+    "numeric": {
+      "family": "Barlow",
+      "features": ["tnum"],
+      "uso": "OBRIGATÓRIO tabular em: dano, stats, moeda, timer, ranking. Sem tnum os números dançam ao atualizar."
+    },
+    "scale": {
+      "_base": "16px. Escala 1.25 (terça maior). Nenhum tamanho fora desta lista.",
+      "display-xl": { "px": 40, "lineHeight": 1.1,  "family": "display" },
+      "display-l":  { "px": 32, "lineHeight": 1.15, "family": "display" },
+      "title":      { "px": 24, "lineHeight": 1.25, "family": "ui" },
+      "heading":    { "px": 20, "lineHeight": 1.3,  "family": "ui" },
+      "body":       { "px": 16, "lineHeight": 1.5,  "family": "ui" },
+      "label":      { "px": 14, "lineHeight": 1.4,  "family": "ui" },
+      "caption":    { "px": 12, "lineHeight": 1.35, "family": "ui" },
+      "_minimo_absoluto": "12px. Abaixo disso é ilegível em tela de 6\" e reprova em acessibilidade."
+    }
+  },
+
+  "spacing": {
+    "_base": "Grade de 4px. Nenhum valor fora desta lista.",
+    "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24, "2xl": 32, "3xl": 48, "4xl": 64
+  },
+
+  "radius": {
+    "none": 0, "sm": 4, "md": 8, "lg": 12, "pill": 999,
+    "_nota": "Ícone da Play Store: NÃO arredonde. O Google aplica 30% de raio automaticamente em 2026. Cantos arredondados no arquivo = canto duplo."
+  },
+
+  "touch": {
+    "minTarget": 44,
+    "_nota": "44×44 dp mínimo para qualquer elemento tocável. Não negociável — é a diferença entre jogável e frustrante em combate.",
+    "thumbZone": "Controles primários no terço inferior. Joystick canto inferior esquerdo, habilidades canto inferior direito.",
+    "safeArea": "Respeitar notch e barra de gestos. Nada interativo a menos de 24px da borda inferior."
+  },
+
+  "motion": {
+    "_principio": "Feedback de combate é instantâneo. Transição de UI é rápida. Nada acima de 300ms.",
+    "instant": { "ms": 0,   "uso": "resposta de input — o jogador toca, algo acontece NO MESMO FRAME" },
+    "hitStop": { "ms": 60,  "uso": "congelamento no impacto. Isto é 80% da sensação de 'jogo bom'." },
+    "fast":    { "ms": 120, "easing": "cubic-bezier(0.4,0,0.2,1)", "uso": "hover, press, toggle" },
+    "normal":  { "ms": 200, "easing": "cubic-bezier(0.4,0,0.2,1)", "uso": "abrir painel, tooltip" },
+    "slow":    { "ms": 300, "easing": "cubic-bezier(0.4,0,0.2,1)", "uso": "transição de tela" },
+    "_proibido": "Nenhuma animação bloqueia input. Se o jogador pode tocar, a animação pode ser interrompida."
+  },
+
+  "signature": {
+    "nome": "A Fratura",
+    "descricao": "Uma única linha de fratura diagonal a 14° da vertical. É o elemento memorável do jogo e codifica A Ruptura (o cataclismo fundador) — não é decoração.",
+    "angulo_graus": 14,
+    "onde_usar": [
+      "logo — atravessa a marca",
+      "divisória de painel — no lugar de linha reta",
+      "transição de carregamento — a tela racha e revela",
+      "flash de habilidade pronta"
+    ],
+    "onde_NAO_usar": [
+      "não repita em mais de 2 elementos por tela",
+      "nunca como textura de fundo",
+      "nunca em ícone de loja (ilegível a 48px)"
+    ],
+    "_regra": "Gaste a ousadia num lugar só. Tudo ao redor da fratura fica quieto e disciplinado."
+  },
+
+  "storeAssets": {
+    "_fonte": "Google Play Console Help, verificado em 20/08/2026. Números são requisito rígido — upload fora da spec é rejeitado.",
+    "icon": {
+      "arquivo": "store/icon-512.png",
+      "width": 512, "height": 512,
+      "format": "png", "bitDepth": 32, "alpha": true,
+      "maxBytes": 1048576,
+      "colorSpace": "sRGB",
+      "regras": [
+        "EXIGE canal alpha (32-bit PNG)",
+        "NÃO adicione cantos arredondados nem sombra — o Google aplica automaticamente",
+        "2026: renderização automática com 30% de raio. Mantenha o essencial numa zona segura central de 66%.",
+        "Sem texto no ícone — ilegível a 48px",
+        "Deve ser reconhecível em escala de cinza (teste de daltonismo)"
+      ]
+    },
+    "featureGraphic": {
+      "arquivo": "store/feature-1024x500.png",
+      "width": 1024, "height": 500,
+      "format": "png", "bitDepth": 24, "alpha": false,
+      "regras": [
+        "PROÍBE alpha — transparência é rejeitada. É o oposto do ícone.",
+        "Nada de texto crítico nas bordas: pode ser cortado",
+        "Proibido: preço, ranking, 'grátis', 'novo', selo de loja",
+        "Precisa funcionar com botão de play sobreposto no centro"
+      ]
+    },
+    "screenshots": {
+      "pasta": "store/screenshots/",
+      "minCount": 2, "maxCount": 8,
+      "recommended": { "width": 1080, "height": 1920 },
+      "minSide": 320, "maxSide": 3840, "maxAspectRatio": 2.0,
+      "format": ["png", "jpg"], "alpha": false,
+      "locales": ["pt-BR", "es-419", "en-US"],
+      "regras": [
+        "Mínimo 2 para publicar. As 2 primeiras decidem a instalação.",
+        "Legendas traduzidas nos 3 idiomas — screenshot em inglês converte mal no Brasil",
+        "Mostre GAMEPLAY REAL. Arte conceitual sem gameplay é motivo de rejeição."
+      ]
+    },
+    "title": {
+      "maxChars": 30,
+      "regras": ["Limite rígido de 30 caracteres", "Sem 'grátis', sem emoji, sem superlativo"]
+    },
+    "shortDescription": { "maxChars": 80 },
+    "fullDescription":  { "maxChars": 4000 }
+  },
+
+  "adaptiveIcon": {
+    "_nota": "Ícone do launcher Android é diferente do ícone da loja.",
+    "foreground": "game-client/Assets/Icons/adaptive-foreground.png",
+    "background": "game-client/Assets/Icons/adaptive-background.png",
+    "canvas": 108, "safeZoneDiameter": 66,
+    "regra": "Só os 66dp centrais são garantidos. O sistema pode mascarar em círculo, squircle ou losango."
+  }
+}

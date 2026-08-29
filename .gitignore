@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+
+# Prisma — cliente gerado, nunca commitar
+game-server/src/generated/
+
+# Unity
+game-client/**/Library/
+game-client/**/Temp/
+game-client/**/Obj/
+game-client/**/Build/
+game-client/**/Logs/
+game-client/**/UserSettings/
+*.csproj
+*.sln
+
+# Next.js
+web-portal/.next/
+
+# OS
+.DS_Store
+Thumbs.db

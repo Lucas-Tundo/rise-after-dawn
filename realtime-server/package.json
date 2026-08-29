@@ -1,0 +1,30 @@
+{
+  "name": "rad-realtime-server",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "description": "",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@colyseus/core": "0.16.5",
+    "@colyseus/redis-driver": "^0.17.7",
+    "@colyseus/redis-presence": "^0.17.8",
+    "@colyseus/schema": "3.0.42",
+    "@colyseus/ws-transport": "0.16.5",
+    "colyseus": "0.16.5",
+    "colyseus.js": "0.16.22"
+  },
+  "devDependencies": {
+    "@types/node": "26.3.0",
+    "tsx": "4.23.12",
+    "typescript": "7.0.2"
+  }
+}
